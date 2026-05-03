@@ -1,73 +1,61 @@
-# React + TypeScript + Vite
+# Antigravity V2 - SEO Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Antigravity is a premium SEO Dashboard designed to monitor performance, indexing status, and technical health of websites. Built with React, TypeScript, and Vite, it provides a sleek, high-performance interface for SEO professionals.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Global Dashboard**: Overview of all your projects with real-time health scores.
+- **Indexing Status**: Check if your pages are indexed by Google and identify canonical issues.
+- **PageSpeed Analysis**: Deep dive into Core Web Vitals (LCP, CLS, TBT) and performance scores.
+- **Cloudflare Integration**: Monitor traffic and security directly from your dashboard.
+- **AI Insights**: Automated technical diagnostic and action plans for site optimization.
+- **Bulk Analysis**: Import multiple domains or sitemaps for mass auditing.
 
-## React Compiler
+## 🛠️ Technology Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React 19 + TypeScript
+- **Bundler**: Vite
+- **Styling**: TailwindCSS (or Custom CSS)
+- **Icons**: Lucide React
+- **API Integrations**:
+  - Google PageSpeed Insights API
+  - Google Search Console / Indexing API
+  - Gemini AI (for diagnostics)
+  - Serper.dev (for search data)
 
-## Expanding the ESLint configuration
+## 📦 Installation
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/xande-ark/antigravity-V2.git
+   cd antigravity-V2
+   ```
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+3. **Configure environment variables**:
+   Create a `.env` file in the root directory based on `.env.example`:
+   ```bash
+   VITE_PAGESPEED_API_KEY=your_key
+   VITE_INDEXING_API_KEY=your_key
+   VITE_SEARCH_CONSOLE_API_KEY=your_key
+   VITE_SERPER_API_KEY=your_key
+   VITE_GEMINI_API_KEY=your_key
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+4. **Run in development mode**:
+   ```bash
+   npm run dev
+   ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+5. **Build for production**:
+   ```bash
+   npm run build
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 📄 License
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+MIT License - feel free to use and modify for your own projects.

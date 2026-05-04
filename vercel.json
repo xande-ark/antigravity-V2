@@ -1,4 +1,6 @@
 {
-  "name": "antigravity-v2",
-  "framework": "vite"
+  "rewrites": [
+    { "source": "/api/proxy", "destination": "/api/proxy.ts" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

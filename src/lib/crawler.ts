@@ -8,8 +8,6 @@ const PROXY_LIST = [
   'https://thingproxy.freeboard.io/fetch/'
 ];
 
-const JSON_PROXY = 'https://api.allorigins.win/get?url=';
-
 /** Extract base origin from any URL string */
 const getOrigin = (url: string): string => {
   try {

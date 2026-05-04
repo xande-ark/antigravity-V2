@@ -3,7 +3,6 @@ import type { AnalysisResult, Metric, PageSpeedData, IndexingData, Opportunity }
 import { proxyFetch, getHttpStatus } from './crawler';
 
 const PAGESPEED_API_KEY = import.meta.env.VITE_PAGESPEED_API_KEY;
-const INDEXING_API_KEY = import.meta.env.VITE_INDEXING_API_KEY;
 const SERPER_API_KEY = import.meta.env.VITE_SERPER_API_KEY;
 
 const checkRealIndexing = async (url: string): Promise<boolean> => {
@@ -27,15 +26,10 @@ const checkRealIndexing = async (url: string): Promise<boolean> => {
   }
 };
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 const randInt = (min: number, max: number) => Math.floor(rand(min, max));
 
-const randomScore = (): number => randInt(40, 100);
-
 const generateMetric = (type: 'lcp' | 'cls' | 'inp' | 'fcp' | 'ttfb' | 'speedIndex' | 'tbt'): Metric => {
-  const r = Math.random();
   switch (type) {
     case 'lcp': {
       const v = parseFloat(rand(0.8, 6.5).toFixed(1));

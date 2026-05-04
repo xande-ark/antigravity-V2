@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud, CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronRight, Zap, Lock, Shield, Globe, RefreshCw, ExternalLink, Key } from 'lucide-react';
+import { CheckCircle, XCircle, ChevronDown, ChevronRight, Zap, Lock, Shield, Globe, RefreshCw } from 'lucide-react';
 import {
   verifyToken, listZones, getZoneSettings, analyzeSettings, applyRecommendedSettings,
   getCustomRules, getRateLimits, createInternationalBlockRule, createApiRateLimitRule, diagnosticCheck,
@@ -45,15 +45,11 @@ const ZoneCard: React.FC<ZoneCardProps> = ({ zone, token, isSelected, onToggle, 
   const [settings, setSettings] = useState<SettingStatus[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0, label: '' });
-  const [applyResult, setApplyResult] = useState<{ success: number; failed: string[] } | null>(null);
   const [wafRules, setWafRules] = useState<FirewallRule[]>([]);
   const [rateLimits, setRateLimits] = useState<FirewallRule[]>([]);
-  const [wafLoading, setWafLoading] = useState(false);
 
   const loadSettings = async () => {
     setLoading(true);
-    setWafLoading(true);
     try {
       const raw = await getZoneSettings(token, zone.id);
       setSettings(analyzeSettings(raw));
@@ -65,7 +61,6 @@ const ZoneCard: React.FC<ZoneCardProps> = ({ zone, token, isSelected, onToggle, 
       console.error(e);
     } finally {
       setLoading(false);
-      setWafLoading(false);
     }
   };
 
@@ -75,11 +70,7 @@ const ZoneCard: React.FC<ZoneCardProps> = ({ zone, token, isSelected, onToggle, 
 
   const handleApply = async () => {
     setApplying(true);
-    setApplyResult(null);
-    const result = await applyRecommendedSettings(token, zone.id, (done, total, label) => {
-      setProgress({ done, total, label });
-    });
-    setApplyResult(result);
+    await applyRecommendedSettings(token, zone.id, () => {});
     setApplying(false);
     await loadSettings();
   };
@@ -293,7 +284,7 @@ export const CloudflareManager: React.FC = () => {
                   type="text" 
                   value={token} 
                   onChange={e => setToken(e.target.value)} 
-                  style={{ flex: 1, background: 'var(--bg-app)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '10px', borderRadius: '8px', WebkitTextSecurity: showToken ? 'none' : 'disc' as any }}
+                  style={{ flex: 1, background: 'var(--bg-app)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '10px', borderRadius: '8px', WebkitTextSecurity: showToken ? 'none' : 'disc' } as React.CSSProperties}
                 />
                 <button onClick={() => setShowToken(!showToken)} style={{ padding: '0 12px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer' }}>
                   {showToken ? 'Ocultar' : 'Ver'}

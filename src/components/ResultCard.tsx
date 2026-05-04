@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { AnalysisResult, Metric } from '../types';
-import { CheckCircle2, AlertTriangle, XCircle, Globe, Zap, Search, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Zap, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   result: AnalysisResult;
@@ -28,7 +28,7 @@ const MetricBadge = ({ metric, label, description }: { metric: Metric; label: st
   );
 };
 
-const StatusRow = ({ status, label, description, okText, errorText, isError }: { status: string, label: string, description: string, okText: string, errorText: string, isError: boolean }) => {
+const StatusRow = ({ label, description, okText, errorText, isError }: { label: string, description: string, okText: string, errorText: string, isError: boolean }) => {
   const color = isError ? 'var(--error)' : 'var(--success)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-tertiary)', padding: '16px', borderRadius: '8px', borderLeft: `4px solid ${color}` }}>
@@ -211,7 +211,6 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
                   
                   <StatusRow 
                     label="Tag Canonical"
-                    status={indexing.canonicalStatus}
                     isError={indexing.canonicalStatus !== 'valid'}
                     okText="Tag válida"
                     errorText="Conflito ou Ausente"
@@ -220,7 +219,6 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
 
                   <StatusRow 
                     label="Diretiva Noindex"
-                    status={indexing.noindex ? 'error' : 'ok'}
                     isError={indexing.noindex}
                     okText="Ausente (Pode ser indexada)"
                     errorText="Detectado (Bloqueia indexação)"
@@ -229,7 +227,6 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
 
                   <StatusRow 
                     label="Robots.txt"
-                    status={indexing.robotsBlocked ? 'error' : 'ok'}
                     isError={indexing.robotsBlocked}
                     okText="Acesso permitido"
                     errorText="Acesso bloqueado"
@@ -238,7 +235,6 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
 
                   <StatusRow 
                     label="Status de Redirecionamento"
-                    status={indexing.redirectStatus}
                     isError={indexing.redirectStatus !== 'ok'}
                     okText="Status 200 (OK)"
                     errorText="Cadeia de 301 ou Erro"

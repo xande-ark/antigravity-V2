@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { 
-  ChevronRight, ChevronDown, CheckCircle2, XCircle, AlertCircle, 
-  ArrowRightLeft, ExternalLink, Trash2, Plus, ScanSearch, RefreshCcw, RefreshCw
+  ChevronRight, ChevronDown, AlertCircle, 
+  ExternalLink, Trash2, ScanSearch, RefreshCw
 } from 'lucide-react';
 import type { Project, AnalysisResult, CrawlResult } from '../types';
 
 interface ProjectTableProps {
-  project: Project;
+  project?: Project;
   results: AnalysisResult[];
-  onDeleteProject: (id: string) => void;
-  onViewDetails: (id: string) => void;
+  onDeleteProject?: (id: string) => void;
+  onViewDetails?: (id: string) => void;
   onSelectResult?: (result: AnalysisResult) => void;
   onCrawl?: (url: string) => void;
   onDeleteResult?: (id: string) => void;
@@ -18,7 +18,6 @@ interface ProjectTableProps {
 }
 
 export function ProjectTable({ 
-  project, 
   results, 
   onSelectResult,
   onCrawl,
@@ -94,7 +93,7 @@ export function ProjectTable({
             </tr>
           )}
 
-          {rootResults.map((result, index) => {
+          {rootResults.map((result) => {
             const isExpanded = expandedRows.has(result.id);
             const normalizedRoot = normalizeUrl(result.url);
             const childResults = results.filter(r => r.isSubpage && normalizeUrl(r.url).startsWith(normalizedRoot) && normalizeUrl(r.url) !== normalizedRoot);
@@ -103,7 +102,6 @@ export function ProjectTable({
             const renderRow = (res: AnalysisResult, isChild: boolean) => {
               const rHovered = hoveredRow === res.id;
               const isIndexing = res.status === 'analyzing';
-              const isError = res.status === 'error';
               
               // Check if this URL was found as 404 in a parent's crawl data
               const parentCrawlData = results
@@ -201,7 +199,7 @@ export function ProjectTable({
                       onClick={(e) => {
                         e.stopPropagation();
                         const updated = { ...res, indexing: { ...res.indexing, isIndexed: !res.indexing.isIndexed } };
-                        onReanalyze(updated); // This triggers an update in the parent state
+                        onReanalyze?.(updated); // This triggers an update in the parent state
                       }}
                       title="Clique para alternar status de indexação"
                     >
@@ -315,10 +313,10 @@ export function ProjectTable({
                     {/* Crawl result panel — shown right below the row */}
                     {result.crawlData && (() => {
                       const cd = result.crawlData as CrawlResult;
-                      const broken = cd.urls.filter(u => u.httpCode === 404 || u.httpCode === 410);
-                      const redirects = cd.urls.filter(u => u.httpCode >= 300 && u.httpCode < 400);
-                      const ok = cd.urls.filter(u => u.httpCode === 200);
-                      const newUrls = cd.urls.filter(u => u.httpCode === 200 || u.status === 'ok');
+                      const broken = cd.urls.filter(u => (u.httpCode ?? 0) === 404 || (u.httpCode ?? 0) === 410);
+                      const redirects = cd.urls.filter(u => (u.httpCode ?? 0) >= 300 && (u.httpCode ?? 0) < 400);
+                      const ok = cd.urls.filter(u => (u.httpCode ?? 0) === 200);
+                      const newUrls = cd.urls.filter(u => (u.httpCode ?? 0) === 200 || u.status === 'ok');
                       return (
                         <tr key={`${result.id}-crawldata`}>
                           <td colSpan={6} style={{ padding: '0 16px 16px 48px', background: 'var(--bg-app)' }}>

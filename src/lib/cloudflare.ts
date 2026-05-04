@@ -24,10 +24,8 @@ export interface SettingStatus {
 }
 
 // GET requests must NOT include Content-Type to avoid CORS preflight failure
-const getHeaders = (token: string) => {
+const getHeaders = (token: string): Record<string, string> => {
   if (token.length < 40 && !token.includes('.')) {
-    // Likely a Global API Key or needs email - but we'll assume Token first
-    // If user provides "email:key", we split it
     if (token.includes(':')) {
       const [email, key] = token.split(':');
       return { 'X-Auth-Email': email, 'X-Auth-Key': key };
@@ -36,10 +34,8 @@ const getHeaders = (token: string) => {
   return { 'Authorization': `Bearer ${token}` };
 };
 
-// PATCH/POST requests need Content-Type
-const mutateHeaders = (token: string) => {
-  const h = getHeaders(token) as any;
-  return { ...h, 'Content-Type': 'application/json' };
+const mutateHeaders = (token: string): Record<string, string> => {
+  return { ...getHeaders(token), 'Content-Type': 'application/json' };
 };
 
 /** Verify token by listing zones — simplest CORS-friendly check */

@@ -1,9 +1,11 @@
 import type { CrawledUrl, CrawlResult } from '../types';
 
 const PROXY_LIST = [
-  '', // Try direct first (many sites allow CORS for sitemaps)
+  '', // Try direct first
   'https://api.allorigins.win/raw?url=',
-  'https://api.codetabs.com/v1/proxy?quest='
+  'https://api.codetabs.com/v1/proxy?quest=',
+  'https://corsproxy.io/?',
+  'https://thingproxy.freeboard.io/fetch/'
 ];
 
 const JSON_PROXY = 'https://api.allorigins.win/get?url=';
@@ -34,38 +36,53 @@ export const proxyFetch = async (url: string, timeoutMs = 8000): Promise<string>
       // try next proxy if CORS blocks or times out
     }
   }
-  throw new Error(`Falha ao acessar ${url} (CORS ou erro de rede)`);
+  throw new Error(`Falha ao acessar ${url} após tentar múltiplos proxies.`);
 };
 
-/** Get HTTP status code trying direct fetch, then allorigins JSON proxy */
+/** Get HTTP status code trying direct fetch, then proxies */
 export const getHttpStatus = async (url: string): Promise<number> => {
-  // 1. Try direct HEAD request
+  // 1. Try direct HEAD/GET (works if site allows CORS or same-origin)
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
     const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
     clearTimeout(timer);
-    // If we reach here, CORS allowed it
-    return res.status;
+    if (res.status > 0) return res.status;
   } catch {
-    // 2. Try direct GET request (some servers block HEAD)
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(url, { method: 'GET', signal: controller.signal });
       clearTimeout(timer);
-      return res.status;
+      if (res.status > 0) return res.status;
     } catch {
-      // 3. Fallback to JSON proxy
-      try {
-        const res = await fetch(`${JSON_PROXY}${encodeURIComponent(url)}`);
-        const data = await res.json();
-        return data?.status?.http_code ?? 0;
-      } catch {
-        return 0;
-      }
+      // Fall through to proxies
     }
   }
+
+  // 2. Try JSON Proxy (allorigins)
+  try {
+    const res = await fetch(`${JSON_PROXY}${encodeURIComponent(url)}`);
+    const data = await res.json();
+    const code = data?.status?.http_code;
+    // If allorigins returns 404, it might be the proxy failing, not the site
+    if (code === 200) return 200;
+    if (code > 0 && code !== 404) return code;
+  } catch {
+    // try next
+  }
+
+  // 3. Try other proxies sequentially
+  for (const proxy of PROXY_LIST.slice(3)) { // Try corsproxy.io and thingproxy
+    try {
+      const res = await fetch(`${proxy}${encodeURIComponent(url)}`, { method: 'HEAD' });
+      if (res.status > 0) return res.status;
+    } catch {
+      continue;
+    }
+  }
+
+  return 0; // Unknown or blocked
 };
 
 /** Parse any sitemap XML (urlset or sitemapindex), returns URLs */

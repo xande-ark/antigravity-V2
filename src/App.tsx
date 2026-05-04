@@ -6,10 +6,10 @@ import { GlobalDashboard } from './components/GlobalDashboard';
 import { ProjectTable } from './components/ProjectTable';
 import { DetailDrawer } from './components/DetailDrawer';
 import { CloudflareManager } from './components/CloudflareManager';
-import type { Project, AnalysisResult, CrawlResult } from './types';
+import type { Project, AnalysisResult } from './types';
 import { analyzeUrl } from './lib/analyzer';
 import { crawlDomain } from './lib/crawler';
-import { Plus, Activity, Globe, AlertTriangle, RefreshCcw, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, AlertTriangle } from 'lucide-react';
 import './App.css';
 
 // Error Boundary Component
@@ -79,7 +79,6 @@ function AppContent() {
   const [quickCheckResults, setQuickCheckResults] = useState<AnalysisResult[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showInputForProject, setShowInputForProject] = useState<boolean>(false);
-  const [targetProjectForQuickCheck, setTargetProjectForQuickCheck] = useState<string>('');
 
   useEffect(() => {
     try {
@@ -115,7 +114,6 @@ function AppContent() {
   };
 
   const handleCrawlDomain = async (url: string, projectId?: string) => {
-    const targetProject = projectId ? projects.find(p => p.id === projectId) : null;
     
     // Helper to normalize URLs for strict deduplication
     const normalizeUrl = (u: string) => u.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
@@ -315,7 +313,7 @@ function AppContent() {
       if (selectedResult?.id === result.id) setSelectedResult(newResult);
     } catch (e) {
       console.error('Reanalyze error:', e);
-      const errorUpdater = (prev: AnalysisResult[]) => prev.map(r => r.id === result.id ? { ...r, status: 'error' } : r);
+      const errorUpdater = (prev: AnalysisResult[]) => prev.map(r => r.id === result.id ? { ...r, status: 'error' as const } : r);
       if (projectId) setResultsByProject(prev => ({ ...prev, [projectId]: errorUpdater(prev[projectId] || []) }));
       else setQuickCheckResults(prev => errorUpdater(prev));
     }
@@ -331,7 +329,7 @@ function AppContent() {
     const bottlenecksCount = completed.flatMap(r => r.criticalBottlenecks).length;
     return { avgScore, bottlenecksCount, totalUrls: completed.length };
   };
-  const { avgScore, bottlenecksCount, totalUrls } = getProjectStats();
+  const { avgScore, totalUrls } = getProjectStats();
 
   const renderGlobalView = () => {
     if (activeView === 'global_dashboard') {

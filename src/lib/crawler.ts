@@ -39,9 +39,20 @@ export const proxyFetch = async (url: string, timeoutMs = 8000): Promise<string>
   throw new Error(`Falha ao acessar ${url} após tentar múltiplos proxies.`);
 };
 
-/** Get HTTP status code trying direct fetch, then proxies */
+/** Get HTTP status code trying our own server proxy, then direct, then fallback proxies */
 export const getHttpStatus = async (url: string): Promise<number> => {
-  // 1. Try direct HEAD/GET (works if site allows CORS or same-origin)
+  // 1. Try our own Server-Side Proxy (best for bypassing CORS and Bot detection)
+  try {
+    const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status > 0) return data.status;
+    }
+  } catch {
+    // If not on Vercel or API fails, continue to next methods
+  }
+
+  // 2. Try direct HEAD/GET (works if site allows CORS)
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
@@ -55,34 +66,30 @@ export const getHttpStatus = async (url: string): Promise<number> => {
       const res = await fetch(url, { method: 'GET', signal: controller.signal });
       clearTimeout(timer);
       if (res.status > 0) return res.status;
-    } catch {
-      // Fall through to proxies
-    }
+    } catch { }
   }
 
-  // 2. Try JSON Proxy (allorigins)
-  try {
-    const res = await fetch(`${JSON_PROXY}${encodeURIComponent(url)}`);
-    const data = await res.json();
-    const code = data?.status?.http_code;
-    // If allorigins returns 404, it might be the proxy failing, not the site
-    if (code === 200) return 200;
-    if (code > 0 && code !== 404) return code;
-  } catch {
-    // try next
-  }
-
-  // 3. Try other proxies sequentially
-  for (const proxy of PROXY_LIST.slice(3)) { // Try corsproxy.io and thingproxy
+  // 3. Fallback to public proxies
+  for (const proxy of PROXY_LIST.slice(1)) {
     try {
-      const res = await fetch(`${proxy}${encodeURIComponent(url)}`, { method: 'HEAD' });
-      if (res.status > 0) return res.status;
+      const fetchUrl = proxy.includes('allorigins.win/get') 
+        ? `${proxy}${encodeURIComponent(url)}` 
+        : `${proxy}${encodeURIComponent(url)}`;
+        
+      const res = await fetch(fetchUrl);
+      if (res.ok) {
+        if (proxy.includes('allorigins')) {
+          const data = await res.json();
+          return data?.status?.http_code || 0;
+        }
+        return res.status;
+      }
     } catch {
       continue;
     }
   }
 
-  return 0; // Unknown or blocked
+  return 0;
 };
 
 /** Parse any sitemap XML (urlset or sitemapindex), returns URLs */

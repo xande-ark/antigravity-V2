@@ -6,10 +6,11 @@ import { GlobalDashboard } from './components/GlobalDashboard';
 import { ProjectTable } from './components/ProjectTable';
 import { DetailDrawer } from './components/DetailDrawer';
 import { CloudflareManager } from './components/CloudflareManager';
+import { ProjectAIInsights } from './components/ProjectAIInsights';
 import type { Project, AnalysisResult } from './types';
 import { analyzeUrl } from './lib/analyzer';
 import { crawlDomain } from './lib/crawler';
-import { Plus, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Plus, RefreshCw, AlertTriangle, Zap, Globe } from 'lucide-react';
 import './App.css';
 
 // Error Boundary Component
@@ -59,7 +60,16 @@ function AppContent() {
   const [resultsByProject, setResultsByProject] = useState<Record<string, AnalysisResult[]>>(() => {
     try {
       const saved = localStorage.getItem('antigravity_results');
-      return saved ? JSON.parse(saved) : {};
+      if (!saved) return {};
+      const parsed = JSON.parse(saved) as Record<string, AnalysisResult[]>;
+      // Reseta resultados simulados para 'pending' para forçar re-análise com API real
+      const cleaned: Record<string, AnalysisResult[]> = {};
+      for (const [key, results] of Object.entries(parsed)) {
+        cleaned[key] = results.map(r =>
+          r.source === 'Simulação' ? { ...r, status: 'pending' as const } : r
+        );
+      }
+      return cleaned;
     } catch { return {}; }
   });
 
@@ -79,6 +89,7 @@ function AppContent() {
   const [quickCheckResults, setQuickCheckResults] = useState<AnalysisResult[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showInputForProject, setShowInputForProject] = useState<boolean>(false);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'indexed' | 'not_indexed' | 'analyzing'>('all');
 
   useEffect(() => {
     try {
@@ -168,11 +179,17 @@ function AppContent() {
   };
 
   const handleDeleteProject = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este projeto?')) {
-      setProjects(prev => prev.filter(p => p.id !== id));
-      setResultsByProject(prev => { const n = { ...prev }; delete n[id]; return n; });
+    if (window.confirm('Tem certeza que deseja excluir este projeto?')) {
+      setProjects(projects.filter(p => p.id !== id));
+      const newResults = { ...resultsByProject };
+      delete newResults[id];
+      setResultsByProject(newResults);
       if (activeView === id) setActiveView('global_dashboard');
     }
+  };
+
+  const handleRenameProject = (id: string, name: string) => {
+    setProjects(projects.map(p => p.id === id ? { ...p, name } : p));
   };
 
   const handleDeleteResult = (resultId: string, projectId?: string) => {
@@ -221,8 +238,14 @@ function AppContent() {
       currentResults.filter(r => r.status === 'completed').map(r => normalizeUrl(r.url))
     );
 
-    // Only queue URLs that are truly new or have errors (not already completed)
-    const urlsToProcess = urls.filter(url => !alreadyCompletedUrls.has(normalizeUrl(url)));
+    // Pula URLs já concluídas com dados REAIS. Re-analisa se eram simulados.
+    const urlsToProcess = urls.filter(url => {
+      const existing = currentResults.find(r => normalizeUrl(r.url) === normalizeUrl(url));
+      if (!existing) return true;                    // nova URL
+      if (existing.status !== 'completed') return true; // ainda em andamento/erro
+      if (existing.source === 'Simulação') return true; // dados simulados → re-analisa
+      return false;                                  // já tem dados reais
+    });
 
     // Add new pending entries to state (only for URLs not already present at all)
     targetSetter(prev => {
@@ -338,6 +361,8 @@ function AppContent() {
           projects={projects} resultsByProject={resultsByProject}
           onDeleteProject={handleDeleteProject}
           onViewDetails={(id) => setActiveView(id)}
+          onSelectResult={(r) => setSelectedResult(r)}
+          onNavigate={setActiveView}
         />
       );
     }
@@ -411,11 +436,13 @@ function AppContent() {
 
   return (
     <div className="app-container">
-      <ProjectSidebar
-        projects={projects} activeView={activeView}
-        onChangeView={(v) => { setActiveView(v); setShowInputForProject(false); setSelectedResult(null); }}
+      <ProjectSidebar 
+        projects={projects} 
+        activeView={activeView} 
+        onChangeView={(v) => { setActiveView(v); setShowInputForProject(false); setSelectedResult(null); }} 
         onCreateProject={handleCreateProject}
         onDeleteProject={handleDeleteProject}
+        onRenameProject={handleRenameProject}
         urlCounts={urlCounts}
       />
 
@@ -447,18 +474,69 @@ function AppContent() {
                     </button>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '2px', background: 'var(--border-color)', borderTop: '1px solid var(--border-color)', borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderRadius: '12px 12px 0 0', overflow: 'hidden' }}>
+
+                {/* PAINEL DE INSIGHTS DA IA - Para desativar, basta comentar esta linha */}
+                <ProjectAIInsights results={activeResults} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
                   {[
-                    { label: 'Score de Performance', value: avgScore || '—', color: avgScore >= 90 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : avgScore > 0 ? 'var(--error)' : 'var(--text-muted)', sub: avgScore >= 90 ? 'Excelente' : avgScore >= 50 ? 'Precisa melhorar' : avgScore > 0 ? 'Crítico' : 'Sem dados' },
-                    { label: 'Analisadas', value: totalUrls, color: 'var(--info)', sub: 'URLs concluídas' },
-                    { label: 'Em Progresso', value: activeResults.filter(r => r.status === 'analyzing').length, color: 'var(--warning)', sub: 'aguardando API' },
-                    { label: 'Indexadas', value: activeResults.filter(r => r.status === 'completed' && r.indexing.isIndexed).length, color: 'var(--success)', sub: `de ${totalUrls} concluídas` },
+                    { 
+                      id: 'all',
+                      label: 'Score de Performance', 
+                      value: avgScore || '—', 
+                      color: avgScore >= 90 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : avgScore > 0 ? 'var(--error)' : 'var(--text-muted)', 
+                      sub: avgScore >= 90 ? 'Excelente' : avgScore >= 50 ? 'Precisa melhorar' : avgScore > 0 ? 'Crítico' : 'Sem dados',
+                      icon: <Zap size={20} />
+                    },
+                    { 
+                      id: 'all',
+                      label: 'Analisadas', 
+                      value: totalUrls, 
+                      color: 'var(--info)', 
+                      sub: 'URLs concluídas',
+                      icon: <Globe size={20} />
+                    },
+                    { 
+                      id: 'analyzing',
+                      label: 'Em Progresso', 
+                      value: activeResults.filter(r => r.status === 'analyzing').length, 
+                      color: 'var(--warning)', 
+                      sub: 'aguardando API',
+                      icon: <RefreshCw size={20} />
+                    },
+                    { 
+                      id: 'indexed',
+                      label: 'Indexadas', 
+                      value: activeResults.filter(r => r.status === 'completed' && r.indexing.isIndexed).length, 
+                      color: 'var(--success)', 
+                      sub: `${activeResults.filter(r => r.status === 'completed' && r.indexing.isIndexed).length} de ${totalUrls} concluídas`,
+                      icon: <Plus size={20} />
+                    },
                   ].map((stat, i) => (
-                    <div key={i} style={{ background: 'var(--bg-app)', padding: '20px 24px', position: 'relative', overflow: 'hidden' }}>
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: stat.color }} />
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '10px' }}>{stat.label}</div>
-                      <div style={{ fontSize: '2rem', fontWeight: 900, color: stat.color, lineHeight: 1, marginBottom: '6px' }}>{stat.value}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{stat.sub}</div>
+                    <div 
+                      key={i} 
+                      onClick={() => setActiveFilter(stat.id as any)}
+                      className="dashboard-card-premium animate-fade-in-up" 
+                      style={{ 
+                        background: 'var(--bg-card)', 
+                        padding: '24px', 
+                        borderRadius: '16px',
+                        border: `1px solid ${activeFilter === stat.id ? stat.color : 'var(--border-color)'}`,
+                        cursor: 'pointer',
+                        animationDelay: `${i * 0.1}s`,
+                        boxShadow: activeFilter === stat.id ? `0 0 20px ${stat.color}20` : 'none',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{ color: stat.color, background: `${stat.color}15`, padding: '8px', borderRadius: '10px' }}>
+                          {stat.icon}
+                        </div>
+                        {activeFilter === stat.id && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: stat.color }} />}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>{stat.label}</div>
+                      <div style={{ fontSize: '2.2rem', fontWeight: 900, color: stat.color, lineHeight: 1, marginBottom: '8px' }}>{stat.value}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{stat.sub}</div>
                     </div>
                   ))}
                 </div>
@@ -482,7 +560,13 @@ function AppContent() {
                 )}
                 <ProjectTable
                   project={activeProject}
-                  results={activeResults}
+                  results={activeResults.filter(r => {
+                    if (activeFilter === 'all') return true;
+                    if (activeFilter === 'indexed') return r.indexing.isIndexed;
+                    if (activeFilter === 'not_indexed') return !r.indexing.isIndexed && r.status === 'completed';
+                    if (activeFilter === 'analyzing') return r.status === 'analyzing';
+                    return true;
+                  })}
                   onDeleteProject={handleDeleteProject}
                   onViewDetails={() => {}}
                   onSelectResult={(r) => setSelectedResult(r)}
@@ -500,7 +584,21 @@ function AppContent() {
           </div>
         )}
       </main>
-      <DetailDrawer result={selectedResult} onClose={() => setSelectedResult(null)} />
+      <DetailDrawer 
+        result={selectedResult} 
+        onClose={() => setSelectedResult(null)} 
+        onUpdateResult={(updatedResult) => {
+          setSelectedResult(updatedResult);
+          if (activeProject) {
+            setResultsByProject(prev => ({
+              ...prev,
+              [activeProject.id]: prev[activeProject.id]?.map(r => r.id === updatedResult.id ? updatedResult : r) || []
+            }));
+          } else {
+            setQuickCheckResults(prev => prev.map(r => r.id === updatedResult.id ? updatedResult : r));
+          }
+        }}
+      />
       
       {/* Toast Container */}
       <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>

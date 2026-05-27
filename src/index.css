@@ -246,3 +246,19 @@ button {
 .data-table tr:last-child td {
   border-bottom: none;
 }
+
+/* Premium Dashboard Cards */
+.dashboard-card-premium:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dashboard-card-premium:hover .card-arrow {
+  transform: translateX(4px);
+  color: var(--text-primary) !important;
+}
+
+.card-arrow {
+  transition: all 0.3s ease;
+}

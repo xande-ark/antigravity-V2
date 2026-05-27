@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/proxy", "destination": "/api/proxy.ts" },
+    { "source": "/api/pagespeed", "destination": "/api/pagespeed.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

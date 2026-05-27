@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { AnalysisResult, Metric } from '../types';
-import { CheckCircle2, AlertTriangle, XCircle, Zap, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Zap, Search, ChevronDown, ChevronUp, WifiOff, CheckCircle } from 'lucide-react';
 
 interface Props {
   result: AnalysisResult;
@@ -90,13 +90,24 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
             {result.score}
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               {result.url}
               {result.isSubpage && <span style={{ fontSize: '0.7rem', background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-secondary)' }}>Subpágina</span>}
             </h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {criticalBottlenecks.length} gargalos encontrados
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {criticalBottlenecks.length} gargalos encontrados
+              </span>
+              {result.source === 'Simulação' ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, background: 'rgba(239,68,68,0.15)', color: 'var(--error)', border: '1px solid rgba(239,68,68,0.3)', padding: '2px 8px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <WifiOff size={10} /> Dados Simulados
+                </span>
+              ) : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, background: 'rgba(34,197,94,0.15)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.3)', padding: '2px 8px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <CheckCircle size={10} /> API Real
+                </span>
+              )}
+            </div>
           </div>
         </div>
         
@@ -108,7 +119,20 @@ export const ResultCard: React.FC<Props> = ({ result }) => {
       {/* CONTEÚDO EXPANDIDO */}
       {isExpanded && (
         <div style={{ borderTop: '1px solid var(--border-color)' }}>
-          
+
+          {/* BANNER DE SIMULAÇÃO */}
+          {result.source === 'Simulação' && (
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderBottom: '1px solid rgba(239,68,68,0.25)', padding: '12px 24px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <WifiOff size={16} color="var(--error)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong style={{ color: 'var(--error)', fontSize: '0.9rem' }}>Falha na consulta real — exibindo dados simulados</strong>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                  A API do Google PageSpeed não respondeu corretamente. Os números abaixo são estimativas geradas automaticamente e <strong>não refletem o desempenho real</strong> do site. Verifique sua chave de API ou tente novamente.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* TABS */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
             <button 

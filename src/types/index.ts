@@ -74,6 +74,7 @@ export interface AnalysisResult {
   isSubpage: boolean;
   score: number;
   pageSpeed: PageSpeedData;
+  pageSpeedDesktop?: PageSpeedData;
   indexing: IndexingData;
   criticalBottlenecks: string[];
   isCrawling?: boolean;

@@ -68,14 +68,14 @@ export function ProjectTable({
   return (
     <div className="table-container" style={{ overflow: 'visible' }}>
       <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0' }}>
-        <thead>
+        <thead style={{ background: 'rgba(255, 255, 255, 0.02)', position: 'sticky', top: 0, zIndex: 10 }}>
           <tr>
-            <th style={{ textAlign: 'left', paddingLeft: '48px' }}>URL</th>
-            <th style={{ textAlign: 'center' }}>INDEXAÇÃO</th>
-            <th style={{ textAlign: 'center' }}>PAGESPEED</th>
-            <th style={{ textAlign: 'left' }}>LCP</th>
-            <th style={{ textAlign: 'left' }}>CLS</th>
-            <th style={{ textAlign: 'right' }}>AÇÕES</th>
+            <th style={{ textAlign: 'left', padding: '16px 16px 16px 48px', borderBottom: '1px solid var(--border-color)' }}>URL</th>
+            <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>INDEXAÇÃO</th>
+            <th style={{ textAlign: 'center', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>PAGESPEED</th>
+            <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>LCP</th>
+            <th style={{ textAlign: 'left', padding: '16px', borderBottom: '1px solid var(--border-color)' }}>CLS</th>
+            <th style={{ textAlign: 'right', padding: '16px 24px 16px 16px', borderBottom: '1px solid var(--border-color)' }}>AÇÕES</th>
           </tr>
         </thead>
         <tbody>
@@ -137,7 +137,9 @@ export function ProjectTable({
                 onMouseLeave={() => setHoveredRow(null)}
                 className={`hover-magnetic ${!isChild ? 'animate-fade-in-up' : ''}`}
                 style={{
-                  background: rHovered ? 'var(--bg-tertiary)' : (isChild ? 'var(--bg-app)' : 'transparent')
+                  background: rHovered ? 'var(--bg-card-hover)' : (isChild ? 'var(--bg-app)' : 'transparent'),
+                  transition: 'background 0.2s ease',
+                  borderLeft: rHovered ? '2px solid var(--accent-primary)' : '2px solid transparent'
                 }}
               >
                   <td style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: isChild ? '48px' : '16px', minHeight: '60px' }}>
@@ -235,10 +237,12 @@ export function ProjectTable({
                               onClick={() => onSelectResult && onSelectResult(res)}
                               className="btn-hover-effect"
                               style={{ 
-                                padding: '6px 12px', fontSize: '0.75rem', fontWeight: 700, 
-                                borderRadius: '6px', cursor: 'pointer',
-                                background: 'var(--accent-primary)', color: 'white',
-                                border: 'none'
+                                padding: '8px 16px', fontSize: '0.75rem', fontWeight: 800, 
+                                borderRadius: '8px', cursor: 'pointer',
+                                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                                color: 'white', border: 'none',
+                                boxShadow: '0 4px 10px rgba(138, 43, 226, 0.2)',
+                                textTransform: 'uppercase', letterSpacing: '0.5px'
                               }}
                             >
                               Ver detalhes

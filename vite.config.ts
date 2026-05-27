@@ -12,6 +12,14 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/cf-api/, ''),
         secure: true,
       },
+      // Proxy do PageSpeed para evitar problemas de CORS/referrer no dev local
+      // Em produção (Vercel), a rota /api/pagespeed é tratada pela serverless function
+      '/pagespeed-proxy': {
+        target: 'https://www.googleapis.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/pagespeed-proxy/, '/pagespeedonline/v5/runPagespeed'),
+      },
     },
   },
 })

@@ -295,7 +295,15 @@ const _crawlDomain = async (
       };
     }
 
-    const limitedUrls = foundUrls.slice(0, maxUrls);
+    const targetHostname = new URL(origin).hostname.replace(/^www\./, '');
+    const filteredUrls = foundUrls.filter(u => {
+      try {
+        const uHost = new URL(u).hostname.replace(/^www\./, '');
+        return uHost === targetHostname;
+      } catch { return false; }
+    });
+
+    const limitedUrls = filteredUrls.slice(0, maxUrls);
     base.totalFound = foundUrls.length;
 
     // Build set of project URLs for comparison

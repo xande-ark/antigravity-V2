@@ -5,6 +5,41 @@ import { proxyFetch, getHttpStatus } from './crawler';
 const PAGESPEED_API_KEY = import.meta.env.VITE_PAGESPEED_API_KEY;
 const SERPER_API_KEY = import.meta.env.VITE_SERPER_API_KEY;
 
+/**
+ * Em produção (Vercel), chama /api/pagespeed (serverless function — sem CORS/referrer).
+ * Em desenvolvimento local, usa /pagespeed-proxy (Vite dev proxy para googleapis.com).
+ */
+const fetchPageSpeedData = async (targetUrl: string, strategy: 'mobile' | 'desktop', signal: AbortSignal): Promise<any> => {
+  const isProd = import.meta.env.PROD;
+  const t = Date.now();
+
+  // Em produção: rota server-side via Vercel Function
+  if (isProd) {
+    const endpoint = `/api/pagespeed?url=${encodeURIComponent(targetUrl)}&strategy=${strategy}&_t=${t}`;
+    console.log(`[PageSpeed] Usando rota server-side (prod) — ${strategy}:`, targetUrl);
+    const res = await fetch(endpoint, { signal });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `API server-side retornou ${res.status}`);
+    return data;
+  }
+
+  // Em dev local: usa o proxy Vite (/pagespeed-proxy → googleapis.com)
+  const params = new URLSearchParams({
+    url: targetUrl,
+    key: PAGESPEED_API_KEY || '',
+    strategy,
+    _t: String(t),
+  });
+  ['PERFORMANCE', 'ACCESSIBILITY', 'BEST_PRACTICES', 'SEO'].forEach(cat => params.append('category', cat));
+
+  const devUrl = `/pagespeed-proxy?${params.toString()}`;
+  console.log(`[PageSpeed] Usando proxy Vite (dev) — ${strategy}:`, targetUrl);
+  const res = await fetch(devUrl, { signal, cache: 'no-store' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `API retornou ${res.status}`);
+  return data;
+};
+
 const checkRealIndexing = async (url: string): Promise<boolean> => {
   if (!SERPER_API_KEY) return false;
   try {
@@ -91,87 +126,126 @@ const generateOpportunities = (lcp: Metric, tbt: Metric, cls: Metric): Opportuni
   return ops;
 };
 
-export const analyzeUrl = async (url: string, isSubpage: boolean): Promise<AnalysisResult> => {
+const parsePageSpeedData = (data: any): PageSpeedData => {
+  const lighthouse = data.lighthouseResult;
+  const audit = lighthouse.audits;
+  
+  const getMetric = (name: string, unit: string): Metric => {
+    const a = audit[name];
+    if (!a) return { value: 'N/A', score: 'good' };
+    const val = a.numericValue;
+    let score: Metric['score'] = 'good';
+    if (a.score < 0.5) score = 'poor';
+    else if (a.score < 0.9) score = 'needs-improvement';
+    
+    return {
+      value: a.displayValue || `${val.toFixed(1)}${unit}`,
+      numericValue: val,
+      unit,
+      score
+    };
+  };
+
+  const lcp = getMetric('largest-contentful-paint', 's');
+  const cls = getMetric('cumulative-layout-shift', '');
+  const tbt = getMetric('total-blocking-time', 'ms');
+  const fcp = getMetric('first-contentful-paint', 's');
+  const speedIndex = getMetric('speed-index', 's');
+  const ttfb = getMetric('server-response-time', 'ms');
+  const inp = getMetric('interactive', 'ms');
+
+  const opportunities: Opportunity[] = Object.values(audit)
+    .filter((a: any) => a.details?.type === 'opportunity' && a.score < 0.9)
+    .map((a: any) => ({
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      savings: a.displayValue || '',
+      impact: a.score < 0.5 ? 'high' : 'medium'
+    }));
+
+  return {
+    lcp, cls, inp, fcp, ttfb, speedIndex, tbt,
+    scores: {
+      performance: Math.round(lighthouse.categories.performance?.score * 100 || 0),
+      accessibility: Math.round(lighthouse.categories.accessibility?.score * 100 || 0),
+      bestPractices: Math.round(lighthouse.categories['best-practices']?.score * 100 || 0),
+      seo: Math.round(lighthouse.categories.seo?.score * 100 || 0),
+    },
+    resources: {
+      totalRequests: audit['network-requests']?.details?.items?.length || 0,
+      totalSize: audit['total-byte-weight']?.displayValue || '0 KB',
+      js: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'script')?.size || '0 KB',
+      css: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'stylesheet')?.size || '0 KB',
+      images: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'image')?.size || '0 KB',
+      fonts: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'font')?.size || '0 KB',
+      other: '0 KB'
+    },
+    opportunities,
+    blockers: opportunities.filter(o => o.impact === 'high').map(o => o.title),
+  };
+};
+
+export const analyzeDesktopUrl = async (url: string): Promise<PageSpeedData> => {
+  let targetUrl = url.trim();
+  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    targetUrl = `https://${targetUrl}`;
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
+
   try {
-    // 1. Fetch Real PageSpeed Data
-    // Ensure URL has protocol
-    let targetUrl = url.trim();
-    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-      targetUrl = `https://${targetUrl}`;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
-
-    const psUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(targetUrl)}&key=${PAGESPEED_API_KEY}&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO&strategy=mobile`;
-    
-    console.log('Fetching PageSpeed for:', targetUrl);
-    const response = await fetch(psUrl, { signal: controller.signal });
+    const data = await fetchPageSpeedData(targetUrl, 'desktop', controller.signal);
     clearTimeout(timeoutId);
-    
-    if (!response.ok) throw new Error(`Falha na API: ${response.status}`);
-    const data = await response.json();
+    return parsePageSpeedData(data);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    throw new Error(error.message || 'Falha ao analisar Desktop');
+  }
+};
 
-    const lighthouse = data.lighthouseResult;
-    const audit = lighthouse.audits;
-    
-    // Extract Metrics
-    const getMetric = (name: string, unit: string): Metric => {
-      const a = audit[name];
-      if (!a) return { value: 'N/A', score: 'good' };
-      const val = a.numericValue;
-      let score: Metric['score'] = 'good';
-      if (a.score < 0.5) score = 'poor';
-      else if (a.score < 0.9) score = 'needs-improvement';
-      
-      return {
-        value: a.displayValue || `${val.toFixed(1)}${unit}`,
-        numericValue: val,
-        unit,
-        score
-      };
+export const analyzeUrl = async (url: string, isSubpage: boolean): Promise<AnalysisResult> => {
+  let targetUrl = url.trim();
+  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    targetUrl = `https://${targetUrl}`;
+  }
+
+  // ── Fase 1: PageSpeed API (via proxy server-side em prod, Vite proxy em dev) ──
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout
+
+  let pageSpeed: PageSpeedData;
+  let apiSource: 'Google PageSpeed API' | 'Simulação' = 'Google PageSpeed API';
+  let apiError: string | undefined;
+
+  try {
+    const mobileData = await fetchPageSpeedData(targetUrl, 'mobile', controller.signal);
+    clearTimeout(timeoutId);
+    pageSpeed = parsePageSpeedData(mobileData);
+    console.log('[PageSpeed] ✅ Dados reais recebidos. Performance:', pageSpeed.scores.performance);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    apiSource = 'Simulação';
+    apiError = error?.message || 'Erro desconhecido na API do PageSpeed';
+    console.error('[PageSpeed] ❌ Falha — usando dados simulados. Motivo:', apiError);
+    // Gera dados mock mas com flag clara de simulação
+    const lcp = generateMetric('lcp');
+    const cls = generateMetric('cls');
+    const tbt = generateMetric('tbt');
+    pageSpeed = {
+      lcp, cls, tbt,
+      inp: generateMetric('inp'),
+      fcp: generateMetric('fcp'),
+      ttfb: generateMetric('ttfb'),
+      speedIndex: generateMetric('speedIndex'),
+      scores: { performance: randInt(30, 75), accessibility: randInt(60, 95), bestPractices: randInt(60, 95), seo: randInt(60, 95) },
+      resources: { totalRequests: 0, totalSize: 'N/A', js: 'N/A', css: 'N/A', images: 'N/A', fonts: 'N/A', other: 'N/A' },
+      opportunities: generateOpportunities(lcp, tbt, cls),
+      blockers: [],
     };
+  }
 
-    const lcp = getMetric('largest-contentful-paint', 's');
-    const cls = getMetric('cumulative-layout-shift', '');
-    const tbt = getMetric('total-blocking-time', 'ms');
-    const fcp = getMetric('first-contentful-paint', 's');
-    const speedIndex = getMetric('speed-index', 's');
-    
-    // In Lighthouse v10+, TTFB is under experimental or different names, but we can get it
-    const ttfb = getMetric('server-response-time', 'ms');
-    const inp = getMetric('interactive', 'ms'); // Approximation
-
-    const opportunities: Opportunity[] = Object.values(audit)
-      .filter((a: any) => a.details?.type === 'opportunity' && a.score < 0.9)
-      .map((a: any) => ({
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        savings: a.displayValue || '',
-        impact: a.score < 0.5 ? 'high' : 'medium'
-      }));
-
-    const pageSpeed: PageSpeedData = {
-      lcp, cls, inp, fcp, ttfb, speedIndex, tbt,
-      scores: {
-        performance: Math.round(lighthouse.categories.performance.score * 100),
-        accessibility: Math.round(lighthouse.categories.accessibility.score * 100),
-        bestPractices: Math.round(lighthouse.categories['best-practices'].score * 100),
-        seo: Math.round(lighthouse.categories.seo.score * 100),
-      },
-      resources: {
-        totalRequests: audit['network-requests']?.details?.items?.length || 0,
-        totalSize: audit['total-byte-weight']?.displayValue || '0 KB',
-        js: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'script')?.size || '0 KB',
-        css: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'stylesheet')?.size || '0 KB',
-        images: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'image')?.size || '0 KB',
-        fonts: audit['resource-summary']?.details?.items?.find((i: any) => i.resourceType === 'font')?.size || '0 KB',
-        other: '0 KB'
-      },
-      opportunities,
-      blockers: opportunities.filter(o => o.impact === 'high').map(o => o.title),
-    };
+  try {
 
     // 2. Real Indexing Check — first verify HTTP status
     const httpStatus = await getHttpStatus(targetUrl);
@@ -228,6 +302,7 @@ export const analyzeUrl = async (url: string, isSubpage: boolean): Promise<Analy
     };
 
     const criticalBottlenecks: string[] = [];
+    if (apiError) criticalBottlenecks.push(`❌ Falha na API do PageSpeed: ${apiError}`);
     if (is404) criticalBottlenecks.push('Página retorna Erro 404 — não existe ou foi removida.');
     else if (is5xx) criticalBottlenecks.push('Servidor retornou erro 5xx — o site pode estar com problemas.');
     else if (!indexing.isIndexed) criticalBottlenecks.push('Página não encontrada no índice do Google.');
@@ -239,61 +314,27 @@ export const analyzeUrl = async (url: string, isSubpage: boolean): Promise<Analy
       url, 
       isSubpage, 
       score: pageSpeed.scores.performance, 
-      pageSpeed, 
+      pageSpeed,
       indexing, 
       criticalBottlenecks, 
       status: 'completed',
-      source: 'Google PageSpeed API'
+      source: apiSource
     };
 
   } catch (error: any) {
-    console.error('Error analyzing URL:', error);
-    const errorMessage = error?.message || 'Erro desconhecido na API';
-    return fallbackMockAnalysis(url, isSubpage, errorMessage);
+    // Erro no fluxo de indexação (não no PageSpeed) — retorna o que já temos
+    console.error('[Analyzer] Erro na verificação de indexação:', error);
+    return {
+      id: uuidv4(),
+      url,
+      isSubpage,
+      score: pageSpeed.scores.performance,
+      pageSpeed,
+      indexing: { isIndexed: false, noindex: false, canonicalStatus: 'valid', robotsBlocked: false, redirectStatus: 'ok', sitemapStatus: 'not_in_sitemap' },
+      criticalBottlenecks: [apiError ? `❌ Falha na API do PageSpeed: ${apiError}` : 'Erro ao verificar indexação.'],
+      status: 'completed',
+      source: apiSource
+    };
   }
-};
-
-const fallbackMockAnalysis = (url: string, isSubpage: boolean, errorDetail?: string): AnalysisResult => {
-  const lcp = generateMetric('lcp');
-  const cls = generateMetric('cls');
-  const tbt = generateMetric('tbt');
-  
-  const pageSpeed: PageSpeedData = {
-    lcp, cls, tbt,
-    inp: generateMetric('inp'),
-    fcp: generateMetric('fcp'),
-    ttfb: generateMetric('ttfb'),
-    speedIndex: generateMetric('speedIndex'),
-    scores: {
-      performance: randInt(40, 95),
-      accessibility: randInt(70, 100),
-      bestPractices: randInt(70, 100),
-      seo: randInt(70, 100),
-    },
-    resources: { totalRequests: 50, totalSize: '1.2 MB', js: '400 KB', css: '50 KB', images: '600 KB', fonts: '80 KB', other: '20 KB' },
-    opportunities: generateOpportunities(lcp, tbt, cls),
-    blockers: [],
-  };
-
-  const indexing: IndexingData = {
-    isIndexed: false, // Never assume indexed in fallback — we'd need real API to know
-    noindex: false,
-    canonicalStatus: 'valid',
-    robotsBlocked: false,
-    redirectStatus: 'ok',
-    sitemapStatus: 'not_in_sitemap'
-  };
-
-  return { 
-    id: uuidv4(), 
-    url, 
-    isSubpage, 
-    score: pageSpeed.scores.performance, 
-    pageSpeed, 
-    indexing, 
-    criticalBottlenecks: [errorDetail ? `Falha técnica: ${errorDetail}` : 'Usando dados simulados (API indisponível)'], 
-    status: 'completed',
-    source: 'Simulação'
-  };
 };
 

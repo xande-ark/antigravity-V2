@@ -8,12 +8,15 @@ interface Props {
   onChangeView: (view: string) => void;
   onCreateProject: (name: string) => void;
   onDeleteProject: (id: string) => void;
+  onRenameProject: (id: string, name: string) => void;
   urlCounts: Record<string, number>;
 }
 
-export const ProjectSidebar: React.FC<Props> = ({ projects, activeView, onChangeView, onCreateProject, onDeleteProject, urlCounts }) => {
+export const ProjectSidebar: React.FC<Props> = ({ projects, activeView, onChangeView, onCreateProject, onDeleteProject, onRenameProject, urlCounts }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const handleCreateSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -22,6 +25,13 @@ export const ProjectSidebar: React.FC<Props> = ({ projects, activeView, onChange
       setNewProjectName('');
       setIsCreating(false);
     }
+  };
+
+  const handleRenameSubmit = (id: string) => {
+    if (editingName.trim()) {
+      onRenameProject(id, editingName.trim());
+    }
+    setEditingProjectId(null);
   };
 
   return (
@@ -175,24 +185,51 @@ export const ProjectSidebar: React.FC<Props> = ({ projects, activeView, onChange
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  <button
-                    onClick={() => onChangeView(project.id)}
-                    style={{
-                      flex: 1, display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px',
-                      color: activeView === project.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                      textAlign: 'left', overflow: 'hidden'
-                    }}
-                  >
-                    <Folder size={16} color={activeView === project.id ? 'var(--text-primary)' : 'currentColor'} />
-                    <span style={{ fontWeight: activeView === project.id ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
-                      {project.name}
-                    </span>
-                    <span style={{ marginLeft: 'auto', background: 'var(--bg-card-hover)', color: 'var(--text-muted)', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '12px', fontWeight: 600 }}>
-                      {urlCounts[project.id] || 0}
-                    </span>
-                  </button>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                    {editingProjectId === project.id ? (
+                      <input
+                        autoFocus
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onBlur={() => handleRenameSubmit(project.id)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit(project.id)}
+                        style={{
+                          flex: 1,
+                          margin: '6px 12px',
+                          background: 'var(--bg-app)',
+                          border: '1px solid var(--accent-primary)',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          color: 'white',
+                          fontSize: '0.9rem',
+                          outline: 'none'
+                        }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => onChangeView(project.id)}
+                        onDoubleClick={() => {
+                          setEditingProjectId(project.id);
+                          setEditingName(project.name);
+                        }}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px',
+                          color: activeView === project.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                          textAlign: 'left', overflow: 'hidden'
+                        }}
+                      >
+                        <Folder size={16} color={activeView === project.id ? 'var(--text-primary)' : 'currentColor'} />
+                        <span style={{ fontWeight: activeView === project.id ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
+                          {project.name}
+                        </span>
+                        <span style={{ marginLeft: 'auto', background: 'var(--bg-card-hover)', color: 'var(--text-muted)', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '12px', fontWeight: 600 }}>
+                          {urlCounts[project.id] || 0}
+                        </span>
+                      </button>
+                    )}
+                  </div>
 
-                  {activeView === project.id && (
+                  {activeView === project.id && editingProjectId !== project.id && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onDeleteProject(project.id); }}
                       style={{ padding: '10px', color: 'var(--text-muted)' }}
